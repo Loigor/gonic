@@ -82,6 +82,9 @@ func main() {
 	confJukeboxMPVExtraArgs := flag.String("jukebox-mpv-extra-args", "", "extra command line arguments to pass to the jukebox mpv daemon (optional)")
 
 	confProxyPrefix := flag.String("proxy-prefix", "", "url path prefix to use if behind proxy. eg '/gonic' (optional)")
+	confAuthHeader := flag.String("auth-header", "", "HTTP header containing the username for reverse proxy authentication, eg 'Remote-User' (optional)")
+	confAuthGroupsHeader := flag.String("auth-groups-header", "Remote-Groups", "HTTP header containing comma/pipe-separated user groups for reverse proxy authentication (optional)")
+	confAuthAdminGroup := flag.String("auth-admin-group", "", "group name that grants admin privileges when using reverse proxy authentication (optional)")
 	confHTTPLog := flag.Bool("http-log", true, "http request logging (optional)")
 
 	confShowVersion := flag.Bool("version", false, "show gonic version")
@@ -275,7 +278,7 @@ func main() {
 		return url.String()
 	}
 
-	ctrlAdmin, err := ctrladmin.New(dbc, sessDB, scannr, podcast, lastfmClient, resolveProxyPath)
+	ctrlAdmin, err := ctrladmin.New(dbc, sessDB, scannr, podcast, lastfmClient, resolveProxyPath, *confAuthHeader, *confAuthGroupsHeader, *confAuthAdminGroup)
 	if err != nil {
 		log.Panicf("error creating admin controller: %v\n", err)
 	}

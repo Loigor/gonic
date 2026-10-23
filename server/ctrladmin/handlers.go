@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gorilla/sessions"
 	"github.com/nfnt/resize"
 
 	"go.senan.xyz/gonic/db"
@@ -26,7 +27,16 @@ func (c *Controller) ServeNotFound(_ *http.Request) *Response {
 	return &Response{template: "not_found.tmpl", code: 404}
 }
 
-func (c *Controller) ServeLogin(_ *http.Request) *Response {
+func (c *Controller) ServeLogin(r *http.Request) *Response {
+	user, err := c.authenticateProxyUser(r)
+	if err != nil {
+		return &Response{code: 500, err: fmt.Sprintf("error authenticating proxy user: %v", err)}
+	}
+	if user != nil {
+		session := r.Context().Value(CtxSession).(*sessions.Session)
+		session.Values["user"] = user.ID
+		return &Response{redirect: "/admin/home"}
+	}
 	return &Response{template: "login.tmpl"}
 }
 

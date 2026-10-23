@@ -49,11 +49,15 @@ type Controller struct {
 	podcasts         *podcast.Podcasts
 	lastfmClient     *lastfm.Client
 	resolveProxyPath ProxyPathResolver
+
+	authHeader       string
+	authGroupsHeader string
+	authAdminGroup   string
 }
 
 type ProxyPathResolver func(in string) string
 
-func New(dbc *db.DB, sessDB *gormstore.Store, scanner *scanner.Scanner, podcasts *podcast.Podcasts, lastfmClient *lastfm.Client, resolveProxyPath ProxyPathResolver) (*Controller, error) {
+func New(dbc *db.DB, sessDB *gormstore.Store, scanner *scanner.Scanner, podcasts *podcast.Podcasts, lastfmClient *lastfm.Client, resolveProxyPath ProxyPathResolver, authHeader, authGroupsHeader, authAdminGroup string) (*Controller, error) {
 	c := Controller{
 		ServeMux: http.NewServeMux(),
 
@@ -63,6 +67,10 @@ func New(dbc *db.DB, sessDB *gormstore.Store, scanner *scanner.Scanner, podcasts
 		podcasts:         podcasts,
 		lastfmClient:     lastfmClient,
 		resolveProxyPath: resolveProxyPath,
+
+		authHeader:       authHeader,
+		authGroupsHeader: authGroupsHeader,
+		authAdminGroup:   authAdminGroup,
 	}
 
 	resp := respHandler(adminui.TemplatesFS, resolveProxyPath)
@@ -70,7 +78,7 @@ func New(dbc *db.DB, sessDB *gormstore.Store, scanner *scanner.Scanner, podcasts
 	baseChain := withSession(sessDB)
 	userChain := handlerutil.Chain(
 		baseChain,
-		withUserSession(dbc, resolveProxyPath),
+		c.withUserSession,
 	)
 	adminChain := handlerutil.Chain(
 		userChain,
@@ -140,36 +148,46 @@ func withSession(sessDB *gormstore.Store) handlerutil.Middleware {
 	}
 }
 
-func withUserSession(dbc *db.DB, resolvePath func(string) string) handlerutil.Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// session exists at this point
-			session := r.Context().Value(CtxSession).(*sessions.Session)
-			userID, ok := session.Values["user"].(int)
-			if !ok {
-				sessAddFlashW(session, []string{"you are not authenticated"})
-				sessLogSave(session, w, r)
-				http.Redirect(w, r, resolvePath("/admin/login"), http.StatusSeeOther)
-				return
-			}
-			// take username from sesion and add the user row to the context
-			user, err := dbc.GetUserByID(userID)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("error getting user: %s", err), 500)
-				return
-			}
-			if user == nil {
-				// the username in the client's session no longer relates to a
-				// user in the database (maybe the user was deleted)
-				session.Options.MaxAge = -1
-				sessLogSave(session, w, r)
-				http.Redirect(w, r, "/", http.StatusSeeOther)
-				return
-			}
+func (c *Controller) withUserSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// session exists at this point
+		session := r.Context().Value(CtxSession).(*sessions.Session)
+
+		if user, err := c.authenticateProxyUser(r); err != nil {
+			http.Error(w, fmt.Sprintf("error authenticating proxy user: %s", err), 500)
+			return
+		} else if user != nil {
+			session.Values["user"] = user.ID
+			sessLogSave(session, w, r)
 			withUser := context.WithValue(r.Context(), CtxUser, user)
 			next.ServeHTTP(w, r.WithContext(withUser))
-		})
-	}
+			return
+		}
+
+		userID, ok := session.Values["user"].(int)
+		if !ok {
+			sessAddFlashW(session, []string{"you are not authenticated"})
+			sessLogSave(session, w, r)
+			http.Redirect(w, r, c.resolveProxyPath("/admin/login"), http.StatusSeeOther)
+			return
+		}
+		// take username from session and add the user row to the context
+		user, err := c.dbc.GetUserByID(userID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("error getting user: %s", err), 500)
+			return
+		}
+		if user == nil {
+			// the username in the client's session no longer relates to a
+			// user in the database (maybe the user was deleted)
+			session.Options.MaxAge = -1
+			sessLogSave(session, w, r)
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		withUser := context.WithValue(r.Context(), CtxUser, user)
+		next.ServeHTTP(w, r.WithContext(withUser))
+	})
 }
 
 func withAdminSession(next http.Handler) http.Handler {
