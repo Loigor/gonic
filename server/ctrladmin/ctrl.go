@@ -298,9 +298,10 @@ func respRaw(h http.HandlerFunc) http.Handler {
 
 type templateData struct {
 	// common
-	Flashes []any
-	User    *db.User
-	Version string
+	Flashes          []any
+	User             *db.User
+	Version          string
+	ProxyAuthEnabled bool
 
 	// home
 	Stats                      db.Stats

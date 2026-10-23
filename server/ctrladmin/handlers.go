@@ -66,6 +66,7 @@ func (c *Controller) ServeHome(r *http.Request) *Response {
 	if err := allUsersQ.Find(&data.AllUsers).Error; err != nil {
 		return &Response{code: 500, err: fmt.Sprintf("error finding users: %v", err)}
 	}
+	data.ProxyAuthEnabled = c.proxyAuthEnabled()
 
 	// recent folders box
 	err = c.dbc.
@@ -188,6 +189,9 @@ func (c *Controller) ServeUnlinkListenBrainzDo(r *http.Request) *Response {
 }
 
 func (c *Controller) ServeChangeUsername(r *http.Request) *Response {
+	if c.proxyAuthEnabled() {
+		return &Response{redirect: "/admin/home", flashW: []string{"username changes are disabled when reverse proxy authentication is enabled"}}
+	}
 	user, err := selectedUserIfAdmin(c, r)
 	if err != nil {
 		return &Response{code: 400, err: err.Error()}
@@ -201,6 +205,9 @@ func (c *Controller) ServeChangeUsername(r *http.Request) *Response {
 }
 
 func (c *Controller) ServeChangeUsernameDo(r *http.Request) *Response {
+	if c.proxyAuthEnabled() {
+		return &Response{redirect: "/admin/home", flashW: []string{"username changes are disabled when reverse proxy authentication is enabled"}}
+	}
 	user, err := selectedUserIfAdmin(c, r)
 	if err != nil {
 		return &Response{code: 400, err: err.Error()}

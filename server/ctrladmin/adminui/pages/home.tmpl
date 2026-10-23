@@ -33,7 +33,11 @@
     {{ range $user := .AllUsers }}
         <div class="col-span-3 md:col-auto ellipsis">{{ $user.Name }}</div>
         <div class="text-gray-500 whitespace-nowrap">{{ $user.CreatedAt | date }}</div>
-        {{ component "link" (props . "To" (printf "/admin/change_username?user=%s" $user.Name | path)) }}username{{ end }}
+        {{ if $.ProxyAuthEnabled }}
+            <div class="text-gray-500">username</div>
+        {{ else }}
+            {{ component "link" (props . "To" (printf "/admin/change_username?user=%s" $user.Name | path)) }}username{{ end }}
+        {{ end }}
         {{ component "link" (props . "To" (printf "/admin/change_password?user=%s" $user.Name | path)) }}password{{ end }}
         {{ component "link" (props . "To" (printf "/admin/change_avatar?user=%s" $user.Name | path)) }}avatar{{ end }}
         {{ if $user.IsAdmin }}

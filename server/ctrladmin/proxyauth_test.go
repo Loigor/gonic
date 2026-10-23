@@ -109,3 +109,18 @@ func openTestDB(t *testing.T) *db.DB {
 	dbc.LogMode(false)
 	return dbc
 }
+
+func TestChangeUsernameDisabledWithProxyAuth(t *testing.T) {
+	t.Parallel()
+	c := &Controller{authHeader: "Remote-User"}
+	r := httptest.NewRequest(http.MethodGet, "/admin/change_username?user=alice", nil)
+
+	for _, resp := range []*Response{c.ServeChangeUsername(r), c.ServeChangeUsernameDo(r)} {
+		if resp.redirect != "/admin/home" {
+			t.Fatalf("redirect=%q want /admin/home", resp.redirect)
+		}
+		if len(resp.flashW) == 0 {
+			t.Fatal("expected warning flash")
+		}
+	}
+}

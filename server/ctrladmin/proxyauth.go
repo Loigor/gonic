@@ -11,12 +11,16 @@ import (
 	"go.senan.xyz/gonic/db"
 )
 
+func (c *Controller) proxyAuthEnabled() bool {
+	return c.authHeader != ""
+}
+
 // authenticateProxyUser resolves a user from reverse-proxy auth headers.
 // When authHeader is configured and present, the user is looked up (or created)
 // and IsAdmin is synced from group membership. Returns nil, nil when proxy auth
 // is disabled or the username header is absent.
 func (c *Controller) authenticateProxyUser(r *http.Request) (*db.User, error) {
-	if c.authHeader == "" {
+	if !c.proxyAuthEnabled() {
 		return nil, nil
 	}
 	username := strings.TrimSpace(r.Header.Get(c.authHeader))
