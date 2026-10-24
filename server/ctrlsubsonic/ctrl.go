@@ -177,6 +177,12 @@ func New(dbc *db.DB, scannr *scanner.Scanner, musicPaths []MusicPath, podcastsPa
 	c.Handle("/deletePodcastChannel", chain(resp(c.ServeDeletePodcastChannel)))
 	c.Handle("/deletePodcastEpisode", chain(resp(c.ServeDeletePodcastEpisode)))
 
+	// shares
+	c.Handle("/getShares", chain(resp(c.ServeGetShares)))
+	c.Handle("/createShare", chain(resp(c.ServeCreateShare)))
+	c.Handle("/updateShare", chain(resp(c.ServeUpdateShare)))
+	c.Handle("/deleteShare", chain(resp(c.ServeDeleteShare)))
+
 	// internet radio
 	c.Handle("/getInternetRadioStations", chain(resp(c.ServeGetInternetRadioStations)))
 	c.Handle("/createInternetRadioStation", chain(resp(c.ServeCreateInternetRadioStation)))

@@ -185,6 +185,7 @@ func (c *Controller) ServeGetUser(r *http.Request) *spec.Response {
 		AdminRole:         user.IsAdmin,
 		JukeboxRole:       c.jukebox != nil,
 		PodcastRole:       c.podcasts != nil,
+		ShareRole:         true,
 		DownloadRole:      true,
 		ScrobblingEnabled: true,
 		Folder:            []int{1},

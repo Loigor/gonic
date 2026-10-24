@@ -19,6 +19,12 @@ import (
 	"go.senan.xyz/gonic/server/ctrlsubsonic/specid"
 )
 
+func init() {
+	// OS mime databases disagree (e.g. macOS audio/x-flac vs Linux audio/flac).
+	// Pin IANA types so API responses and golden tests are stable across platforms.
+	_ = mime.AddExtensionType(".flac", "audio/flac")
+}
+
 type DB struct {
 	*gorm.DB
 }
@@ -463,6 +469,40 @@ type TranscodeFormatPreference struct {
 	UserID    int    `gorm:"not null; unique_index:idx_user_id_profile" sql:"default: null; type:int REFERENCES users(id) ON DELETE CASCADE"`
 	Profile   string `gorm:"not null; unique_index:idx_user_id_profile" sql:"default: null"`
 	CreatedAt time.Time
+}
+
+type Share struct {
+	ID            int `gorm:"primary_key"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Token         string `gorm:"not null; unique_index" sql:"default: null"`
+	User          *User
+	UserID        int        `sql:"default: null; type:int REFERENCES users(id) ON DELETE CASCADE"`
+	Description   string     `sql:"default: null"`
+	ExpiresAt     *time.Time `sql:"default: null"`
+	LastVisitedAt *time.Time `sql:"default: null"`
+	VisitCount    int        `sql:"default: 0"`
+	Downloadable  bool       `sql:"default: false"`
+	Entries       []*ShareEntry
+}
+
+func (s *Share) GetEntries() []specid.ID {
+	ret := make([]specid.ID, 0, len(s.Entries))
+	for _, entry := range s.Entries {
+		id, err := specid.New(entry.Item)
+		if err != nil {
+			continue
+		}
+		ret = append(ret, id)
+	}
+	return ret
+}
+
+type ShareEntry struct {
+	ID      int `gorm:"primary_key"`
+	Share   *Share
+	ShareID int    `sql:"default: null; type:int REFERENCES shares(id) ON DELETE CASCADE"`
+	Item    string `gorm:"not null" sql:"default: null"`
 }
 
 type AlbumCredit struct {
