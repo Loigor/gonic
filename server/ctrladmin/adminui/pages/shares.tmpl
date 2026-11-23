@@ -1,0 +1,41 @@
+{{ component "layout" . }}
+{{ component "layout_user" . }}
+
+{{ component "block" (props .
+    "Icon" "music"
+    "Name" "shares"
+    "Desc" "public share links. read-only here; create and update shares from a subsonic client"
+) }}
+<div class="grid grid-cols-[max-content_1fr_max-content_max-content_max-content_max-content_max-content] gap-2 gap-x-5 items-center text-right">
+    <div></div>
+    <div class="text-left text-gray-500">description</div>
+    <div class="text-gray-500">owner</div>
+    <div class="text-gray-500">items</div>
+    <div class="text-gray-500">visits</div>
+    <div class="text-gray-500">expires</div>
+    <div class="text-gray-500">url</div>
+    {{ if eq (len .AllShares) 0 }}
+        <div class="col-span-full text-gray-500 text-left">no shares yet</div>
+    {{ end }}
+    {{ range $share := .AllShares }}
+        <div class="text-gray-500" title="created {{ $share.Token }}">
+            {{ if $share.Downloadable }}&#8681;{{ else }}&#9654;{{ end }}
+        </div>
+        <div class="text-left ellipsis">
+            {{ $share.Description }}
+            {{ if $share.Expired }}<span class="text-red-500">expired</span>{{ end }}
+        </div>
+        <div class="text-gray-500 whitespace-nowrap">{{ $share.Owner }}</div>
+        <div class="text-gray-500">{{ $share.Entries }}</div>
+        <div class="text-gray-500 whitespace-nowrap" title="last visited {{ $share.LastVisited | date }}">{{ $share.VisitCount }}</div>
+        <div class="text-gray-500 whitespace-nowrap">{{ if $share.Expires.IsZero }}never{{ else }}{{ $share.Expires | date }}{{ end }}</div>
+        <details>
+            <summary class="cursor-pointer text-gray-500">link</summary>
+            <a class="text-left block mt-1" href="{{ $share.URL }}">{{ $share.URL }}</a>
+        </details>
+    {{ end }}
+</div>
+{{ end }}
+
+{{ end }}
+{{ end }}

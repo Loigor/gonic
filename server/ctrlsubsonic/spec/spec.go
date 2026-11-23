@@ -91,6 +91,7 @@ type Response struct {
 	AlbumInfo             *AlbumInfo             `xml:"albumInfo"             json:"albumInfo,omitempty"`
 	Genres                *Genres                `xml:"genres"                json:"genres,omitempty"`
 	PlayQueue             *PlayQueue             `xml:"playQueue"             json:"playQueue,omitempty"`
+	PlayQueueByIndex      *PlayQueueByIndex      `xml:"playQueueByIndex"      json:"playQueueByIndex,omitempty"`
 	JukeboxStatus         *JukeboxStatus         `xml:"jukeboxStatus"         json:"jukeboxStatus,omitempty"`
 	JukeboxPlaylist       *JukeboxPlaylist       `xml:"jukeboxPlaylist"       json:"jukeboxPlaylist,omitempty"`
 	Podcasts              *Podcasts              `xml:"podcasts"              json:"podcasts,omitempty"`
@@ -106,6 +107,7 @@ type Response struct {
 	LyricsList            *LyricsList            `xml:"lyricsList"            json:"lyricsList,omitempty"`
 	TranscodeDecision     *TranscodeDecision     `xml:"transcodeDecision"     json:"transcodeDecision,omitempty"`
 	NowPlaying            *NowPlaying            `xml:"nowPlaying"            json:"nowPlaying,omitempty"`
+	Shares                *Shares                `xml:"shares"                json:"shares,omitempty"`
 }
 
 func NewResponse() *Response {
@@ -434,6 +436,16 @@ type PlayQueue struct {
 	List      []*TrackChild `xml:"entry,omitempty"         json:"entry,omitempty"`
 }
 
+// https://opensubsonic.netlify.app/docs/responses/playqueuebyindex/
+type PlayQueueByIndex struct {
+	CurrentIndex int           `xml:"currentIndex,attr"       json:"currentIndex"`
+	Position     int           `xml:"position,attr,omitempty" json:"position,omitempty"`
+	Username     string        `xml:"username,attr"           json:"username"`
+	Changed      time.Time     `xml:"changed,attr"            json:"changed"`
+	ChangedBy    string        `xml:"changedBy,attr"          json:"changedBy"`
+	List         []*TrackChild `xml:"entry,omitempty"         json:"entry,omitempty"`
+}
+
 type JukeboxStatus struct {
 	CurrentIndex int     `xml:"currentIndex,attr" json:"currentIndex"`
 	Playing      bool    `xml:"playing,attr"      json:"playing"`
@@ -499,6 +511,23 @@ type Bookmark struct {
 	Comment  string      `xml:"comment,attr"    json:"comment"`
 	Created  time.Time   `xml:"created,attr"    json:"created"`
 	Changed  time.Time   `xml:"changed,attr"    json:"changed"`
+}
+
+type Shares struct {
+	List []*Share `xml:"share" json:"share"`
+}
+
+type Share struct {
+	ID           string        `xml:"id,attr"                    json:"id"`
+	URL          string        `xml:"url,attr"                    json:"url"`
+	Description  string        `xml:"description,attr,omitempty"  json:"description,omitempty"`
+	Username     string        `xml:"username,attr"               json:"username"`
+	Created      time.Time     `xml:"created,attr"                json:"created"`
+	VisitCount   int           `xml:"visitCount,attr"             json:"visitCount"`
+	LastVisited  *time.Time    `xml:"lastVisited,attr,omitempty"  json:"lastVisited,omitempty"`
+	Expires      *time.Time    `xml:"expires,attr,omitempty"      json:"expires,omitempty"`
+	Downloadable bool          `xml:"downloadable,attr"           json:"downloadable"`
+	Entries      []*TrackChild `xml:"entry,omitempty"             json:"entry,omitempty"`
 }
 
 type Starred struct {

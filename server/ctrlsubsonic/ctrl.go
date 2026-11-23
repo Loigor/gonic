@@ -122,6 +122,8 @@ func New(dbc *db.DB, scannr *scanner.Scanner, musicPaths []MusicPath, podcastsPa
 	c.Handle("/deletePlaylist", chain(resp(c.ServeDeletePlaylist)))
 	c.Handle("/savePlayQueue", chain(resp(c.ServeSavePlayQueue)))
 	c.Handle("/getPlayQueue", chain(resp(c.ServeGetPlayQueue)))
+	c.Handle("/savePlayQueueByIndex", chain(resp(c.ServeSavePlayQueueByIndex)))
+	c.Handle("/getPlayQueueByIndex", chain(resp(c.ServeGetPlayQueueByIndex)))
 	c.Handle("/getSong", chain(resp(c.ServeGetSong)))
 	c.Handle("/getRandomSongs", chain(resp(c.ServeGetRandomSongs)))
 	c.Handle("/getSongsByGenre", chain(resp(c.ServeGetSongsByGenre)))
@@ -176,6 +178,12 @@ func New(dbc *db.DB, scannr *scanner.Scanner, musicPaths []MusicPath, podcastsPa
 	c.Handle("/refreshPodcasts", chain(resp(c.ServeRefreshPodcasts)))
 	c.Handle("/deletePodcastChannel", chain(resp(c.ServeDeletePodcastChannel)))
 	c.Handle("/deletePodcastEpisode", chain(resp(c.ServeDeletePodcastEpisode)))
+
+	// shares
+	c.Handle("/getShares", chain(resp(c.ServeGetShares)))
+	c.Handle("/createShare", chain(resp(c.ServeCreateShare)))
+	c.Handle("/updateShare", chain(resp(c.ServeUpdateShare)))
+	c.Handle("/deleteShare", chain(resp(c.ServeDeleteShare)))
 
 	// internet radio
 	c.Handle("/getInternetRadioStations", chain(resp(c.ServeGetInternetRadioStations)))

@@ -94,6 +94,7 @@ func New(dbc *db.DB, sessDB *gormstore.Store, scanner *scanner.Scanner, podcasts
 	// user routes (if session is valid)
 	c.Handle("GET /logout", userChain(respRaw(c.ServeLogout)))
 	c.Handle("GET /home", userChain(resp(c.ServeHome)))
+	c.Handle("GET /shares", userChain(resp(c.ServeShares)))
 	c.Handle("GET /change_username", userChain(resp(c.ServeChangeUsername)))
 	c.Handle("POST /change_username_do", userChain(resp(c.ServeChangeUsernameDo)))
 	c.Handle("GET /change_password", userChain(resp(c.ServeChangePassword)))
@@ -323,6 +324,7 @@ type templateData struct {
 
 	Podcasts              []*db.Podcast
 	InternetRadioStations []*db.InternetRadioStation
+	AllShares             []*shareView
 
 	// avatar
 	Avatar []byte
