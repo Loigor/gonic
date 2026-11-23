@@ -2,7 +2,11 @@ name: Release
 on:
   push:
     branches:
-      - master
+      - gonicplus
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
 jobs:
   test:
     name: Lint and test
@@ -29,16 +33,13 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
       - name: Setup Release Please
-        uses: google-github-actions/release-please-action@v2
+        uses: googleapis/release-please-action@v4
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: ${{ github.ref_name }}
           release-type: simple
-          changelog-path: CHANGELOG.md
-          package-name: gonic
   build-binaries:
     name: Build binaries
     runs-on: ubuntu-latest
@@ -65,7 +66,8 @@ jobs:
         run: |
           set -e
           CGO_ENABLED=0 GOOS="${{ matrix.os }}" GOARCH="${{ matrix.arch }}" go build -o out/ ./cmd/...
-          [[ "${{ matrix.os }}" = "windows" ]] && suff=".exe"
+          suff=""
+          if [ "${{ matrix.os }}" = "windows" ]; then suff=".exe"; fi
           cd out/
           for p in *; do
               mv "$p" "${p%.*}-${{ matrix.os }}-${{ matrix.arch }}-${{ needs.release-please.outputs.tag_name }}$suff"
@@ -74,7 +76,7 @@ jobs:
       - name: Upload
         uses: svenstaro/upload-release-action@v2
         with:
-          repo_token: ${{ secrets.CR_PAT }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: out/*
           file_glob: true
           tag: ${{ needs.release-please.outputs.tag_name }}
@@ -87,18 +89,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: Login into DockerHub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        uses: docker/setup-buildx-action@v3
       - name: Login into GitHub Container Registry
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.CR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set lowercase image name
+        # registry references must be lowercase, but the repo is "Loigor/gonic"
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - name: Build and Push
         uses: docker/build-push-action@v6
         with:
@@ -107,21 +107,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ needs.release-please.outputs.tag_name }}
-            ghcr.io/${{ github.repository }}:latest
-            ${{ github.repository }}:${{ needs.release-please.outputs.tag_name }}
-            ${{ github.repository }}:latest
+            ${{ env.IMAGE }}:${{ needs.release-please.outputs.tag_name }}
+            ${{ env.IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  notify-irc:
-    needs: [release-please]
-    name: Notify IRC
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Notify
-        run: |
-          set +x e
-          git log -1 --pretty="push to master (@%an) %s" | curl "${{ secrets.IRC_NOTIFY_URL }}" -F target=#gonic -F message=@- >/dev/null 2>&1
-          exit 0
