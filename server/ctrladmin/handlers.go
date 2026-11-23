@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -381,6 +383,9 @@ func (c *Controller) ServeUpdateLastFMAPIKey(r *http.Request) *Response {
 	if data.CurrentLastFMAPISecret, err = c.dbc.GetSetting(db.LastFMSecret); err != nil {
 		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't get secret: %v", err)}}
 	}
+	if data.CurrentLastFMLanguage, err = c.dbc.GetSetting(db.LastFMLanguage); err != nil {
+		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't get language: %v", err)}}
+	}
 	return &Response{
 		template: "update_lastfm_api_key.tmpl",
 		data:     data,
@@ -390,17 +395,35 @@ func (c *Controller) ServeUpdateLastFMAPIKey(r *http.Request) *Response {
 func (c *Controller) ServeUpdateLastFMAPIKeyDo(r *http.Request) *Response {
 	apiKey := r.FormValue("api_key")
 	secret := r.FormValue("secret")
+	language := strings.ToLower(strings.TrimSpace(r.FormValue("lang")))
 	if err := validateAPIKey(apiKey, secret); err != nil {
 		return &Response{
 			redirect: r.Referer(),
 			flashW:   []string{err.Error()},
 		}
 	}
+	previousLanguage, err := c.dbc.GetSetting(db.LastFMLanguage)
+	if err != nil {
+		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't get language: %v", err)}}
+	}
 	if err := c.dbc.SetSetting(db.LastFMAPIKey, apiKey); err != nil {
 		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't set api key: %v", err)}}
 	}
 	if err := c.dbc.SetSetting(db.LastFMSecret, secret); err != nil {
 		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't set secret: %v", err)}}
+	}
+	if err := c.dbc.SetSetting(db.LastFMLanguage, language); err != nil {
+		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't set language: %v", err)}}
+	}
+	if language == previousLanguage {
+		return &Response{redirect: "/admin/home"}
+	}
+	// Refresh cached descriptions in the selected language on their next lookup.
+	if err := c.dbc.Model(&db.ArtistInfo{}).UpdateColumn("updated_at", time.Unix(0, 0)).Error; err != nil {
+		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't expire artist info: %v", err)}}
+	}
+	if err := c.dbc.Model(&db.AlbumInfo{}).UpdateColumn("updated_at", time.Unix(0, 0)).Error; err != nil {
+		return &Response{redirect: r.Referer(), flashW: []string{fmt.Sprintf("couldn't expire album info: %v", err)}}
 	}
 	return &Response{redirect: "/admin/home"}
 }
@@ -700,6 +723,17 @@ func getAvatarFile(r *http.Request) ([]byte, error) {
 	file, _, err := r.FormFile("avatar")
 	if err != nil {
 		return nil, fmt.Errorf("read form file: %w", err)
+	}
+	defer file.Close()
+	cfg, _, err := image.DecodeConfig(file) // check declared dimensions before decoding to avoid OOM errors
+	if err != nil {
+		return nil, fmt.Errorf("decode image config: %w", err)
+	}
+	if int64(cfg.Width)*int64(cfg.Height) > 1<<24 { // allows up to something like 4096x4096
+		return nil, fmt.Errorf("image too large: %dx%d", cfg.Width, cfg.Height)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("rewind: %w", err)
 	}
 	i, _, err := image.Decode(file)
 	if err != nil {

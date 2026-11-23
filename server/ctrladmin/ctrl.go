@@ -319,6 +319,7 @@ type templateData struct {
 
 	CurrentLastFMAPIKey    string
 	CurrentLastFMAPISecret string
+	CurrentLastFMLanguage  string
 	DefaultListenBrainzURL string
 	SelectedUser           *db.User
 

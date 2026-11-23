@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/jinzhu/gorm"
 
 	"go.senan.xyz/gonic/db"
+	"go.senan.xyz/gonic/fileutil"
 	"go.senan.xyz/gonic/scanner"
 	"go.senan.xyz/gonic/scrobble"
 	"go.senan.xyz/gonic/server/ctrlsubsonic/params"
@@ -91,7 +93,7 @@ func (c *Controller) ServeScrobble(r *http.Request) *spec.Response {
 			scrobbleTrack.MusicBrainzReleaseID = track.Album.TagBrainzID
 		}
 
-		if err := scrobbleStatsUpdateTrack(c.dbc, &track, user.ID, optStamp); err != nil {
+		if err := scrobbleStatsUpdateTrack(c.dbc, &track, user.ID, optStamp, optSubmission); err != nil {
 			return spec.NewError(0, "error updating stats: %v", err)
 		}
 
@@ -152,7 +154,7 @@ func (c *Controller) ServeGetMusicFolders(_ *http.Request) *spec.Response {
 
 func (c *Controller) ServeStartScan(r *http.Request) *spec.Response {
 	user := r.Context().Value(CtxUser).(*db.User)
-	if !user.IsAdmin {
+	if !user.IsAdmin && !c.scanNonAdmin {
 		return spec.NewError(50, "user not admin")
 	}
 	go func() {
@@ -822,10 +824,16 @@ func lyricsFromFile(track db.Track) (*spec.StructuredLyrics, error) {
 	fileDir := filepath.Dir(filePath)
 	fileName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
 
-	lrcContent, err := os.ReadFile(filepath.Join(fileDir, fileName+".lrc"))
+	file, err := os.Open(filepath.Join(fileDir, fileName+".lrc"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	lrcContent, err := io.ReadAll(fileutil.StripBOM(file))
 	if err != nil {
 		return nil, err
 	}
@@ -860,10 +868,16 @@ func lyricsFromFileUnsynced(track db.Track) (*spec.StructuredLyrics, error) {
 	fileDir := filepath.Dir(filePath)
 	fileName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
 
-	text, err := os.ReadFile(filepath.Join(fileDir, fileName+".txt"))
+	file, err := os.Open(filepath.Join(fileDir, fileName+".txt"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	text, err := io.ReadAll(fileutil.StripBOM(file))
 	if err != nil {
 		return nil, err
 	}
@@ -888,15 +902,17 @@ func lyricsFromFileUnsynced(track db.Track) (*spec.StructuredLyrics, error) {
 	return &r, nil
 }
 
-func scrobbleStatsUpdateTrack(dbc *db.DB, track *db.Track, userID int, playTime time.Time) error {
+func scrobbleStatsUpdateTrack(dbc *db.DB, track *db.Track, userID int, playTime time.Time, submission bool) error {
 	var play db.TrackPlay
 	if err := dbc.Where("track_id=? AND user_id=?", track.ID, userID).First(&play).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("find stat: %w", err)
 	}
 	play.TrackID = track.ID
 	play.UserID = userID
-	play.Count++
-	play.Length += track.Length
+	if submission {
+		play.Count++
+		play.Length += track.Length
+	}
 	if playTime.After(play.Time) {
 		play.Time = playTime
 	}
@@ -1002,7 +1018,7 @@ func (c *Controller) ServeGetNowPlaying(r *http.Request) *spec.Response {
 	var plays []*db.TrackPlay
 	err := c.dbc.
 		Preload("User").
-		Where("id IN (SELECT max(id) FROM track_plays GROUP BY user_id)").
+		Where("id = (SELECT tp.id FROM track_plays tp WHERE tp.user_id = track_plays.user_id ORDER BY tp.time DESC, tp.id DESC LIMIT 1)").
 		Where("time > ?", time.Now().Add(-time.Hour)).
 		Order("time DESC").
 		Find(&plays).
